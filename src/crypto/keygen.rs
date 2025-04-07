@@ -12,20 +12,74 @@ use std::path::Path;
 /// Number of bits for prime numbers
 const DEFAULT_KEY_SIZE: usize = 512;
 
+/// Module to handle BigUint serialization
+mod bigint_serialization {
+    use num_bigint::BigUint;
+    use serde::{Deserializer, Serializer};
+    use serde::de::{self, Visitor};
+    use std::fmt;
+    use std::str::FromStr;
+
+    pub fn serialize<S>(bigint: &BigUint, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&bigint.to_string())
+    }
+
+    struct BigUintVisitor;
+
+    impl<'de> Visitor<'de> for BigUintVisitor {
+        type Value = BigUint;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string representing a big integer")
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            BigUint::from_str(v).map_err(de::Error::custom)
+        }
+
+        fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            BigUint::from_str(&v).map_err(de::Error::custom)
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<BigUint, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(BigUintVisitor)
+    }
+}
+
 /// Paillier public key
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PublicKey {
-    pub n: BigUint,  // n = p*q
-    pub n_squared: BigUint,  // n² = n*n
-    pub g: BigUint,  // typically n+1
+    #[serde(with = "bigint_serialization")]
+    pub n: BigUint,
+    #[serde(with = "bigint_serialization")]
+    pub n_squared: BigUint,
+    #[serde(with = "bigint_serialization")]
+    pub g: BigUint,
 }
 
 /// Paillier private key
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PrivateKey {
+    #[serde(with = "bigint_serialization")]
     pub lambda: BigUint,  // lcm(p-1, q-1)
+    #[serde(with = "bigint_serialization")]
     pub mu: BigUint,      // g^lambda mod n² = 1 + lambda*n mod n²
+    #[serde(with = "bigint_serialization")]
     pub p: BigUint,       // First prime
+    #[serde(with = "bigint_serialization")]
     pub q: BigUint,       // Second prime
 }
 
@@ -116,15 +170,15 @@ pub fn generate_keypair(key_size: Option<usize>) -> (PublicKey, PrivateKey) {
     
     let public_key = PublicKey {
         n: n.clone(),
-        n_squared: n_squared,
-        g: g,
+        n_squared,
+        g,
     };
     
     let private_key = PrivateKey {
-        lambda: lambda,
-        mu: mu,
-        p: p,
-        q: q,
+        lambda,
+        mu,
+        p,
+        q,
     };
     
     (public_key, private_key)
@@ -182,6 +236,15 @@ pub fn save_keys(public_key: &PublicKey, private_key: &PrivateKey, dir: &str) ->
     fs::write(&public_key_path, public_key_json)
         .map_err(|e| format!("Failed to write public key: {}", e))?;
     
+    // Print key details to terminal
+    println!("\nPublic Key Details:");
+    println!("n = {} ({})", public_key.n, public_key.n.bits());
+    println!("g = {} ({})", public_key.g, public_key.g.bits());
+    
+    println!("\nPrivate Key Details:");
+    println!("lambda = {} ({})", private_key.lambda, private_key.lambda.bits());
+    println!("mu = {} ({})", private_key.mu, private_key.mu.bits());
+
     // Save private key
     let private_key_path = path.join("private_key.json");
     let private_key_json = serde_json::to_string_pretty(private_key)

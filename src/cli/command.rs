@@ -27,9 +27,13 @@ enum Commands {
         #[arg(short, long, default_value = "512")]
         bits: usize,
         
-        /// Directory to save the keys
+        /// Base directory to save the keys
         #[arg(short, long, default_value = DEFAULT_KEY_DIR)]
         dir: String,
+        
+        /// Use timestamp for key folder name
+        #[arg(short, long, default_value = "true")]
+        timestamp: bool,
     },
     
     /// Encrypt a message
@@ -114,15 +118,27 @@ pub fn run() -> Result<(), String> {
     let cli = Cli::parse();
     
     match cli.command {
-        Commands::Keygen { bits, dir } => {
+        Commands::Keygen { bits, dir, timestamp } => {
             println!("Generating key pair with {} bits...", bits);
             let (public_key, private_key) = keygen::generate_keypair(Some(bits));
             
-            keygen::save_keys(&public_key, &private_key, &dir)?;
+            // Create a timestamped key directory if requested
+            let key_dir = if timestamp {
+                let timestamp = Utc::now().format("%Y%m%d_%H%M%S").to_string();
+                format!("{}/keys_{}", dir, timestamp)
+            } else {
+                dir.clone()
+            };
+            
+            // Create the directory structure
+            std::fs::create_dir_all(&key_dir)
+                .map_err(|e| format!("Failed to create key directory: {}", e))?;
+            
+            keygen::save_keys(&public_key, &private_key, &key_dir)?;
             
             println!("Keys generated successfully!");
-            println!("Public key saved to {}/public_key.json", dir);
-            println!("Private key saved to {}/private_key.json", dir);
+            println!("Public key saved to {}/public_key.json", key_dir);
+            println!("Private key saved to {}/private_key.json", key_dir);
             
             // Print some key details for demo purposes
             println!("\nPublic Key Details:");
