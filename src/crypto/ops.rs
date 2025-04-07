@@ -34,7 +34,7 @@ pub fn demo_homomorphic_properties(
     a: u64,
     b: u64,
     k: u64
-) -> (u64, u64, u64, u64) {
+) -> (BigUint, BigUint, BigUint, BigUint) {
     use crate::crypto::{encrypt, decrypt};
     
     // Encrypt values
@@ -50,5 +50,5 @@ pub fn demo_homomorphic_properties(
     let dec_prod = decrypt::decrypt(public_key, private_key, &enc_prod);
     
     // Return the decrypted results to verify homomorphic properties
-    (a + b, dec_sum, a * k, dec_prod)
+    (BigUint::from(a + b), dec_sum, BigUint::from(a * k), dec_prod)
 }

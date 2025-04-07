@@ -106,14 +106,13 @@ pub fn generate_keypair(key_size: Option<usize>) -> (PublicKey, PrivateKey) {
     let g = &n + BigUint::one();
     
     // Compute μ = (L(g^λ mod n²))^(-1) mod n where L(x) = (x-1)/n
-    // For g = n+1, g^λ mod n² = (1 + λ*n) mod n²
-    let _g_lambda_mod_n_squared = (BigUint::one() + &n * &lambda) % &n_squared;
-    
-    // L(g^λ mod n²) = (g^λ mod n² - 1) / n = λ
-    
-    // Calculate μ = λ^(-1) mod n
-    // This is equivalent to finding multiplicative inverse of λ modulo n
-    let mu = calculate_mu(&lambda, &n);
+
+    // For g = n+1, we have g^λ mod n² = (1 + λ*n) mod n²
+    let g_lambda_mod_n_squared = (BigUint::one() + &n * &lambda) % &n_squared;
+    // Apply L function: L(x) = (x-1)/n
+    let l_result = (g_lambda_mod_n_squared - BigUint::one()) / &n;
+    // Calculate μ = L(g^λ mod n²)^(-1) mod n
+    let mu = calculate_mu(&l_result, &n);
     
     let public_key = PublicKey {
         n: n.clone(),

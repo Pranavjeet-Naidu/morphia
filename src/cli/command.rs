@@ -4,6 +4,8 @@ use clap::{Parser, Subcommand};
 use std::path::Path;
 use crate::crypto::{keygen, encrypt, decrypt, ops};
 use chrono::Utc;
+use num_bigint::BigUint;
+use num_traits::ToPrimitive; 
 
 /// Default directory for storing keys
 const DEFAULT_KEY_DIR: &str = "keys";
@@ -184,6 +186,12 @@ pub fn run() -> Result<(), String> {
             
             println!("Decrypted value: {}", plaintext);
             
+            // Try to convert to u64 for display if possible
+            match plaintext.to_u64() {
+                Some(value) => println!("Decrypted value (as u64): {}", value),
+                None => println!("(Note: Value is too large to represent as u64)")
+            }
+            
             Ok(())
         },
         
@@ -290,16 +298,24 @@ pub fn run() -> Result<(), String> {
             let decrypted_sum = decrypt::decrypt(&public_key, &private_key, &encrypted_sum);
             let decrypted_product = decrypt::decrypt(&public_key, &private_key, &encrypted_product);
             
-            println!("Expected sum: {} + {} = {}", value1, value2, value1 + value2);
+            let expected_sum = BigUint::from(value1 + value2);
+            let expected_product = BigUint::from(value1 * constant);
+            
+            println!("Expected sum: {} + {} = {}", value1, value2, expected_sum);
             println!("Decrypted sum: {}", decrypted_sum);
             
-            println!("Expected product: {} * {} = {}", value1, constant, value1 * constant);
+            println!("Expected product: {} * {} = {}", value1, constant, expected_product);
             println!("Decrypted product: {}", decrypted_product);
             
-            if decrypted_sum == value1 + value2 && decrypted_product == value1 * constant {
+            if decrypted_sum == expected_sum && decrypted_product == expected_product {
                 println!("\n✅ Homomorphic properties verified successfully!");
             } else {
                 println!("\n❌ Homomorphic properties verification failed!");
+                
+                // Show detailed comparison
+                println!("\nDetailed comparison:");
+                println!("Sum: {} vs {}", expected_sum, decrypted_sum);
+                println!("Product: {} vs {}", expected_product, decrypted_product);
             }
             
             Ok(())
