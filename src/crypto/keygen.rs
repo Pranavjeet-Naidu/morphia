@@ -2,8 +2,8 @@
 
 use num_bigint::{BigUint, RandBigInt};
 use num_integer::Integer;
-use num_traits::{One, Zero, ToPrimitive};
-use rand::Rng; 
+use num_traits::{One, Zero};
+ 
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use std::fs;

@@ -3,6 +3,7 @@
 use clap::{Parser, Subcommand};
 use std::path::Path;
 use crate::crypto::{keygen, encrypt, decrypt, ops};
+use chrono::Utc;
 
 /// Default directory for storing keys
 const DEFAULT_KEY_DIR: &str = "keys";
@@ -142,10 +143,22 @@ pub fn run() -> Result<(), String> {
             
             println!("Ciphertext: {}", ciphertext.value);
             
+            // Save to specified output if provided
             if let Some(output_path) = output {
                 encrypt::save_ciphertext(&ciphertext, &output_path)?;
                 println!("Ciphertext saved to {}", output_path);
             }
+            
+            // Always save to ciphertext directory with timestamp
+            let timestamp = Utc::now().format("%Y%m%d_%H%M%S").to_string();
+            let auto_path = format!("ciphertext/{}.json", timestamp);
+            
+            // Create ciphertext directory if it doesn't exist
+            std::fs::create_dir_all("ciphertext")
+                .map_err(|e| format!("Failed to create ciphertext directory: {}", e))?;
+            
+            encrypt::save_ciphertext(&ciphertext, &auto_path)?;
+            println!("Ciphertext automatically saved to {}", auto_path);
             
             Ok(())
         },
@@ -205,10 +218,22 @@ pub fn run() -> Result<(), String> {
             
             println!("Sum ciphertext: {}", sum.value);
             
+            // Save to specified output if provided
             if let Some(output_path) = output {
                 encrypt::save_ciphertext(&sum, &output_path)?;
                 println!("Sum ciphertext saved to {}", output_path);
             }
+            
+            // Always save to ciphertext directory with timestamp
+            let timestamp = Utc::now().format("%Y%m%d_%H%M%S").to_string();
+            let auto_path = format!("ciphertext/sum_{}.json", timestamp);
+            
+            // Create ciphertext directory if it doesn't exist
+            std::fs::create_dir_all("ciphertext")
+                .map_err(|e| format!("Failed to create ciphertext directory: {}", e))?;
+            
+            encrypt::save_ciphertext(&sum, &auto_path)?;
+            println!("Sum ciphertext automatically saved to {}", auto_path);
             
             Ok(())
         },
@@ -231,13 +256,35 @@ pub fn run() -> Result<(), String> {
             println!("Encrypted {} to: {}", value1, encrypted1.value);
             println!("Encrypted {} to: {}", value2, encrypted2.value);
             
+            // Save encrypted values
+            let timestamp = Utc::now().format("%Y%m%d_%H%M%S").to_string();
+            let dir_path = "ciphertext";
+            
+            // Create directory if it doesn't exist
+            std::fs::create_dir_all(dir_path)
+                .map_err(|e| format!("Failed to create ciphertext directory: {}", e))?;
+                
+            let path1 = format!("{}/demo_val1_{}.json", dir_path, timestamp);
+            let path2 = format!("{}/demo_val2_{}.json", dir_path, timestamp);
+            encrypt::save_ciphertext(&encrypted1, &path1)?;
+            encrypt::save_ciphertext(&encrypted2, &path2)?;
+            println!("Demo values saved to {} and {}", path1, path2);
+            
             println!("\nStep 2: Performing homomorphic addition (without decryption)");
             let encrypted_sum = ops::add(&public_key, &encrypted1, &encrypted2);
             println!("Encrypted sum: {}", encrypted_sum.value);
             
+            let path_sum = format!("{}/demo_sum_{}.json", dir_path, timestamp);
+            encrypt::save_ciphertext(&encrypted_sum, &path_sum)?;
+            println!("Demo sum saved to {}", path_sum);
+            
             println!("\nStep 3: Performing homomorphic multiplication by constant {}", constant);
             let encrypted_product = ops::multiply_by_constant(&public_key, &encrypted1, constant);
             println!("Encrypted product: {}", encrypted_product.value);
+            
+            let path_prod = format!("{}/demo_prod_{}.json", dir_path, timestamp);
+            encrypt::save_ciphertext(&encrypted_product, &path_prod)?;
+            println!("Demo product saved to {}", path_prod);
             
             println!("\nStep 4: Decrypting results to verify correctness");
             let decrypted_sum = decrypt::decrypt(&public_key, &private_key, &encrypted_sum);
