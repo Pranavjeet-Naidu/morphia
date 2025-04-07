@@ -3,6 +3,7 @@
 use crate::crypto::keygen::PublicKey;
 use num_bigint::{BigUint, RandBigInt};
 use num_traits::One;
+use rand::Rng; 
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 

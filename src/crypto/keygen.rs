@@ -2,7 +2,8 @@
 
 use num_bigint::{BigUint, RandBigInt};
 use num_integer::Integer;
-use num_traits::{One, Zero};
+use num_traits::{One, Zero, ToPrimitive};
+use rand::Rng; 
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -34,7 +35,7 @@ fn generate_prime(bits: usize) -> BigUint {
     loop {
         // Generate a random odd number of specified bit size
         let mut candidate = rng.gen_biguint(bits as u64);
-        if candidate.bit_length() < bits {
+        if candidate.bits() < bits as u64 {
             continue; // Ensure we have full bit length
         }
         
@@ -106,7 +107,7 @@ pub fn generate_keypair(key_size: Option<usize>) -> (PublicKey, PrivateKey) {
     
     // Compute μ = (L(g^λ mod n²))^(-1) mod n where L(x) = (x-1)/n
     // For g = n+1, g^λ mod n² = (1 + λ*n) mod n²
-    let g_lambda_mod_n_squared = (BigUint::one() + &n * &lambda) % &n_squared;
+    let _g_lambda_mod_n_squared = (BigUint::one() + &n * &lambda) % &n_squared;
     
     // L(g^λ mod n²) = (g^λ mod n² - 1) / n = λ
     
@@ -134,9 +135,11 @@ pub fn generate_keypair(key_size: Option<usize>) -> (PublicKey, PrivateKey) {
 fn calculate_mu(lambda: &BigUint, n: &BigUint) -> BigUint {
     // For this demo, we'll use a simple algorithm to find the modular inverse
     // Extended Euclidean algorithm would be more efficient
-    for i in 1..n.clone() {
-        if (&i * lambda) % n == BigUint::one() {
-            return i;
+    let one = BigUint::one();
+    for i in 1u64..n.to_u64().unwrap_or(u64::MAX) {
+        let big_i = BigUint::from(i);
+        if (&big_i * lambda) % n == one {
+            return big_i;
         }
     }
     // This should never happen if gcd(lambda, n) = 1

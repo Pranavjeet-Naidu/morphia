@@ -3,7 +3,7 @@
 use crate::crypto::encrypt::Ciphertext;
 use crate::crypto::keygen::{PrivateKey, PublicKey};
 use num_bigint::BigUint;
-use num_traits::One;
+use num_traits::{One, ToPrimitive};
 
 /// Decrypt a ciphertext using the Paillier cryptosystem
 ///
@@ -23,5 +23,5 @@ pub fn decrypt(public_key: &PublicKey, private_key: &PrivateKey, ciphertext: &Ci
     
     // Convert BigUint to u64
     // For larger numbers, we might need a different approach
-    m.to_u64().unwrap()
+    m.to_u64().unwrap_or_else(|| panic!("Result too large for u64"))
 }
