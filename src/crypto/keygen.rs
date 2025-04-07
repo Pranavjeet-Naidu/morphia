@@ -133,17 +133,39 @@ pub fn generate_keypair(key_size: Option<usize>) -> (PublicKey, PrivateKey) {
 
 /// Calculate μ = λ^(-1) mod n
 fn calculate_mu(lambda: &BigUint, n: &BigUint) -> BigUint {
-    // For this demo, we'll use a simple algorithm to find the modular inverse
-    // Extended Euclidean algorithm would be more efficient
-    let one = BigUint::one();
-    for i in 1u64..n.to_u64().unwrap_or(u64::MAX) {
-        let big_i = BigUint::from(i);
-        if (&big_i * lambda) % n == one {
-            return big_i;
+    // Use the Extended Euclidean Algorithm to find the modular inverse
+    // For BigUint, we implement a version that works with positive numbers
+    fn extended_gcd(a: &BigUint, b: &BigUint) -> (BigUint, BigUint, BigUint) {
+        if b.is_zero() {
+            return (a.clone(), BigUint::one(), BigUint::zero());
+        }
+        
+        let (g, x, y) = extended_gcd(b, &(a % b));
+        
+        // We need to ensure s = x - (a/b)*y is non-negative
+        let q = a / b;
+        let t = q * &y;
+        
+        if x >= t {
+            (g, x - t, y)
+        } else {
+            // We need to add enough multiples of b to make x - q*y non-negative
+            let additional = (t.clone() - &x + b - BigUint::one()) / b;
+            let x_adjusted = x + (additional * b);
+            (g, x_adjusted - t, y)
         }
     }
-    // This should never happen if gcd(lambda, n) = 1
-    panic!("Modular inverse doesn't exist");
+    
+    // Calculate modular inverse using extended GCD
+    let (gcd, x, _) = extended_gcd(lambda, n);
+    
+    // Ensure lambda and n are coprime (gcd should be 1)
+    if gcd != BigUint::one() {
+        panic!("Modular inverse doesn't exist because gcd(lambda, n) != 1");
+    }
+    
+    // Ensure the result is in range [0, n-1]
+    x % n
 }
 
 /// Save keys to files
