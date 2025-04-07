@@ -1,3 +1,6 @@
-//! CLI module for the Morphia application
+//! Cryptographic functions for the Paillier cryptosystem
 
-pub mod commands;
+pub mod keygen;
+pub mod encrypt;
+pub mod decrypt;
+pub mod ops;
