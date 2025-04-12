@@ -122,6 +122,12 @@ pub fn run() -> Result<(), String> {
             println!("Generating key pair with {} bits...", bits);
             let (public_key, private_key) = keygen::generate_keypair(Some(bits));
             
+            // Create the base directory if it doesn't exist
+            if !Path::new(&dir).exists() {
+                std::fs::create_dir_all(&dir)
+                    .map_err(|e| format!("Failed to create base directory: {}", e))?;
+            }
+            
             // Create a timestamped key directory if requested
             let key_dir = if timestamp {
                 let timestamp = Utc::now().format("%Y%m%d_%H%M%S").to_string();
@@ -136,9 +142,19 @@ pub fn run() -> Result<(), String> {
             
             keygen::save_keys(&public_key, &private_key, &key_dir)?;
             
+            // Extract just the key name (without the path)
+            let key_name = Path::new(&key_dir)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(&key_dir);
+            
+            // Add to registry
+            keygen::add_to_registry(key_name)?;
+            
             println!("Keys generated successfully!");
             println!("Public key saved to {}/public_key.json", key_dir);
             println!("Private key saved to {}/private_key.json", key_dir);
+            println!("Key pair '{}' added to registry", key_name);
             
             // Print some key details for demo purposes
             println!("\nPublic Key Details:");
@@ -153,8 +169,27 @@ pub fn run() -> Result<(), String> {
         },
         
         Commands::Encrypt { message, dir, output } => {
-            println!("Loading public key from {}...", dir);
-            let public_key = keygen::load_public_key(&dir)?;
+            // Use the provided dir or get latest from registry
+            let key_dir = if dir == DEFAULT_KEY_DIR {
+                match keygen::get_latest_key_dir() {
+                    Ok(latest) => {
+                        println!("📌 Using latest key from registry: '{}'", latest);
+                        format!("{}/{}", DEFAULT_KEY_DIR, latest)
+                    },
+                    Err(e) => {
+                        // Fall back to default dir if registry fails
+                        println!("⚠️ {}", e);
+                        println!("📌 Falling back to default key directory: {}", dir);
+                        dir.clone()
+                    }
+                }
+            } else {
+                println!("📌 Using specified key directory: {}", dir);
+                dir.clone()
+            };
+            
+            println!("Loading public key from {}...", key_dir);
+            let public_key = keygen::load_public_key(&key_dir)?;
             
             println!("Encrypting message: {}", message);
             let ciphertext = encrypt::encrypt(&public_key, message);
@@ -182,9 +217,28 @@ pub fn run() -> Result<(), String> {
         },
         
         Commands::Decrypt { ciphertext, value, dir } => {
-            println!("Loading keys from {}...", dir);
-            let public_key = keygen::load_public_key(&dir)?;
-            let private_key = keygen::load_private_key(&dir)?;
+            // Use the provided dir or get latest from registry
+            let key_dir = if dir == DEFAULT_KEY_DIR {
+                match keygen::get_latest_key_dir() {
+                    Ok(latest) => {
+                        println!("📌 Using latest key from registry: '{}'", latest);
+                        format!("{}/{}", DEFAULT_KEY_DIR, latest)
+                    },
+                    Err(e) => {
+                        // Fall back to default dir if registry fails
+                        println!("⚠️ {}", e);
+                        println!("📌 Falling back to default key directory: {}", dir);
+                        dir.clone()
+                    }
+                }
+            } else {
+                println!("📌 Using specified key directory: {}", dir);
+                dir.clone()
+            };
+            
+            println!("Loading keys from {}...", key_dir);
+            let public_key = keygen::load_public_key(&key_dir)?;
+            let private_key = keygen::load_private_key(&key_dir)?;
             
             let cipher = if let Some(path) = ciphertext {
                 println!("Loading ciphertext from {}...", path);
@@ -212,8 +266,27 @@ pub fn run() -> Result<(), String> {
         },
         
         Commands::Add { cipher1_file, cipher1, cipher2_file, cipher2, dir, output } => {
-            println!("Loading public key from {}...", dir);
-            let public_key = keygen::load_public_key(&dir)?;
+            // Use the provided dir or get latest from registry
+            let key_dir = if dir == DEFAULT_KEY_DIR {
+                match keygen::get_latest_key_dir() {
+                    Ok(latest) => {
+                        println!("📌 Using latest key from registry: '{}'", latest);
+                        format!("{}/{}", DEFAULT_KEY_DIR, latest)
+                    },
+                    Err(e) => {
+                        // Fall back to default dir if registry fails
+                        println!("⚠️ {}", e);
+                        println!("📌 Falling back to default key directory: {}", dir);
+                        dir.clone()
+                    }
+                }
+            } else {
+                println!("📌 Using specified key directory: {}", dir);
+                dir.clone()
+            };
+            
+            println!("Loading public key from {}...", key_dir);
+            let public_key = keygen::load_public_key(&key_dir)?;
             
             let c1 = if let Some(path) = cipher1_file {
                 println!("Loading first ciphertext from {}...", path);
@@ -265,14 +338,49 @@ pub fn run() -> Result<(), String> {
         Commands::Demo { value1, value2, constant, dir } => {
             println!("Running homomorphic encryption demonstration...");
             
-            if !Path::new(&dir).exists() {
-                println!("Generating new keys for demo...");
-                let (public_key, private_key) = keygen::generate_keypair(Some(512));
-                keygen::save_keys(&public_key, &private_key, &dir)?;
-            }
+            let key_dir = if dir == DEFAULT_KEY_DIR {
+                // Check if keys exist in registry
+                match keygen::get_latest_key_dir() {
+                    Ok(latest) => {
+                        let full_path = format!("{}/{}", DEFAULT_KEY_DIR, latest);
+                        println!("📌 Using latest key from registry: '{}'", latest);
+                        full_path
+                    },
+                    Err(_) => {
+                        // No keys in registry, create new ones
+                        println!("🔑 No keys found in registry. Generating new keys for demo...");
+                        let (public_key, private_key) = keygen::generate_keypair(Some(512));
+                        
+                        // Create directory structure
+                        std::fs::create_dir_all(DEFAULT_KEY_DIR)
+                            .map_err(|e| format!("Failed to create key directory: {}", e))?;
+                        
+                        let timestamp = Utc::now().format("%Y%m%d_%H%M%S").to_string();
+                        let key_name = format!("keys_{}", timestamp);
+                        let full_path = format!("{}/{}", DEFAULT_KEY_DIR, key_name);
+                        
+                        // Create the directory
+                        std::fs::create_dir_all(&full_path)
+                            .map_err(|e| format!("Failed to create key directory: {}", e))?;
+                        
+                        // Save the keys
+                        keygen::save_keys(&public_key, &private_key, &full_path)?;
+                        
+                        // Add to registry
+                        keygen::add_to_registry(&key_name)?;
+                        
+                        println!("Created new key pair: {}", key_name);
+                        full_path
+                    }
+                }
+            } else {
+                println!("📌 Using specified key directory: {}", dir);
+                dir.clone()
+            };
             
-            let public_key = keygen::load_public_key(&dir)?;
-            let private_key = keygen::load_private_key(&dir)?;
+            // Load keys from the determined directory
+            let public_key = keygen::load_public_key(&key_dir)?;
+            let private_key = keygen::load_private_key(&key_dir)?;
             
             println!("\nStep 1: Encrypting values {} and {}", value1, value2);
             let encrypted1 = encrypt::encrypt(&public_key, value1);

@@ -9,7 +9,7 @@ use std::fs;
 use std::path::Path;
 
 // Add RSA crate for secure prime generation
-use rsa::traits::PrivateKeyParts; // Added PrivateKeyParts here
+use rsa::traits::PrivateKeyParts;
 use rsa::RsaPrivateKey;
 
 /// Number of bits for prime numbers
@@ -204,15 +204,6 @@ pub fn save_keys(public_key: &PublicKey, private_key: &PrivateKey, dir: &str) ->
     fs::write(&public_key_path, public_key_json)
         .map_err(|e| format!("Failed to write public key: {}", e))?;
     
-    // // Print key details to terminal
-    // println!("\nPublic Key Details:");
-    // println!("n = {} ({})", public_key.n, public_key.n.bits());
-    // println!("g = {} ({})", public_key.g, public_key.g.bits());
-    
-    // println!("\nPrivate Key Details:");
-    // println!("lambda = {} ({})", private_key.lambda, private_key.lambda.bits());
-    // println!("mu = {} ({})", private_key.mu, private_key.mu.bits());
-
     // Save private key
     let private_key_path = path.join("private_key.json");
     let private_key_json = serde_json::to_string_pretty(private_key)
@@ -241,4 +232,81 @@ pub fn load_private_key(dir: &str) -> Result<PrivateKey, String> {
     let private_key = serde_json::from_str(&private_key_json)
         .map_err(|e| format!("Failed to deserialize private key: {}", e))?;
     Ok(private_key)
+}
+
+/// Get the registry of key pairs
+pub fn get_key_registry() -> Result<Vec<String>, String> {
+    let keys_dir = Path::new("keys");
+    let registry_path = keys_dir.join("registry.json");
+    
+    // If registry doesn't exist, return empty vector
+    if !registry_path.exists() {
+        return Ok(Vec::new());
+    }
+    
+    // Read and parse registry
+    let contents = fs::read_to_string(&registry_path)
+        .map_err(|e| format!("Failed to read key registry: {}", e))?;
+    
+    // If the file exists but is empty, return empty vector
+    if contents.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    
+    // Parse JSON registry
+    let registry: Vec<String> = match serde_json::from_str(&contents) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Warning: Could not parse registry file. Starting with empty registry. Error: {}", e);
+            Vec::new()
+        }
+    };
+    
+    Ok(registry)
+}
+
+/// Add a key pair to the registry
+pub fn add_to_registry(key_name: &str) -> Result<(), String> {
+    // Ensure keys directory exists
+    let keys_dir = Path::new("keys");
+    if !keys_dir.exists() {
+        fs::create_dir_all(keys_dir)
+            .map_err(|e| format!("Failed to create keys directory: {}", e))?;
+    }
+    
+    let registry_path = keys_dir.join("registry.json");
+    
+    // Get current registry
+    let mut registry = get_key_registry()?;
+    
+    // Add new key if not already present
+    if !registry.contains(&key_name.to_string()) {
+        registry.push(key_name.to_string());
+        
+        // Write updated registry
+        let registry_json = serde_json::to_string_pretty(&registry)
+            .map_err(|e| format!("Failed to serialize registry: {}", e))?;
+        
+        fs::write(registry_path, registry_json)
+            .map_err(|e| format!("Failed to write registry: {}", e))?;
+    }
+    
+    Ok(())
+}
+
+/// Get the latest key pair from registry
+pub fn get_latest_key_dir() -> Result<String, String> {
+    let registry = get_key_registry()?;
+    
+    if registry.is_empty() {
+        return Err("No keys found in registry. Generate keys first.".to_string());
+    }
+    
+    // Return the last element (most recent key)
+    Ok(registry.last().unwrap().clone())
+}
+
+/// Print key information for logging purposes
+pub fn print_key_info(key_name: &str) {
+    println!("🔑 Using key: {}", key_name);
 }
