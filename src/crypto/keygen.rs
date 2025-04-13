@@ -128,28 +128,32 @@ pub fn generate_keypair(key_size: Option<usize>) -> (PublicKey, PrivateKey) {
     // Choose g = n+1, which is a common choice for Paillier
     let g = &n + BigUint::one();
     
-    // Compute g^λ mod n²
-    // Note: For large keys, computing g^λ directly is inefficient
-    // But we're using the direct mathematical approach as requested
-    let not_u = g.modpow(&lambda, &n_squared);
+    // For g = n+1, the formula for mu is simpler:
+    // When g = n+1, we know that L(g^λ mod n²) = λ
+    // So we need μ = λ^(-1) mod n
     
-    // Compute L(not_u) = (not_u - 1) / n
-    let l_result = (not_u - BigUint::one()) / &n;
+    // Calculate the modular multiplicative inverse of λ modulo n
+    // 
+    // Calculate the modular multiplicative inverse of λ modulo n
+let mu = {
+    // For Paillier with g = n+1, we can use Fermat's Little Theorem
+    // μ = λ^(φ(n)-1) mod n
+    // Where φ(n) = (p-1)(q-1) for n = p*q
     
-    // Compute μ = L(not_u)^(-1) mod n directly using modular inverse
-    // Calculate modular inverse directly
-    let mu = {
-        let (gcd, x, _) = extended_gcd(&l_result, &n);
-        
-        // Ensure l_result and n are coprime (gcd should be 1)
-        if gcd != BigUint::one() {
-            panic!("Modular inverse doesn't exist because gcd(L(not_u), n) != 1");
-        }
-        
-        // Ensure the result is in range [0, n-1]
-        x % &n
-    };
+    let phi_n = &p_minus_1 * &q_minus_1;  // φ(n) = (p-1)(q-1)
+    let exponent = &phi_n - BigUint::one(); // φ(n)-1
     
+    // Calculate λ^(φ(n)-1) mod n
+    let result = lambda.modpow(&exponent, &n);
+    
+    // Verify the result is correct (λ * μ mod n = 1)
+    let verification = (&lambda * &result) % &n;
+    if verification != BigUint::one() {
+        panic!("Modular inverse verification failed! lambda * mu mod n = {} != 1", verification);
+    }
+    
+    result
+};
     let public_key = PublicKey {
         n: n.clone(),
         n_squared,
@@ -166,29 +170,52 @@ pub fn generate_keypair(key_size: Option<usize>) -> (PublicKey, PrivateKey) {
     (public_key, private_key)
 }
 
-
 // Helper function for extended GCD calculation
-fn extended_gcd(a: &BigUint, b: &BigUint) -> (BigUint, BigUint, BigUint) {
-    if b.is_zero() {
-        return (a.clone(), BigUint::one(), BigUint::zero());
-    }
+// fn extended_gcd(a: &BigUint, b: &BigUint) -> (BigUint, BigUint, BigUint) {
+//     if b.is_zero() {
+//         return (a.clone(), BigUint::one(), BigUint::zero());
+//     }
     
-    let (g, x, y) = extended_gcd(b, &(a % b));
+//     let (g, x, y) = extended_gcd(b, &(a % b));
     
-    // We need to ensure s = x - (a/b)*y is non-negative
-    let q = a / b;
-    let t = q * &y;
+//     // We need to ensure s = x - (a/b)*y is non-negative
+//     let q = a / b;
+//     let t = q * &y;
     
-    if x >= t {
-        (g, x - t, y)
-    } else {
-        // We need to add enough multiples of b to make x - q*y non-negative
-        let additional = (t.clone() - &x + b - BigUint::one()) / b;
-        let x_adjusted = x + (additional * b);
-        (g, x_adjusted - t, y)
-    }
-}
-
+//     if x >= t {
+//         (g, x - t, y)
+//     } else {
+//         // We need to add enough multiples of b to make x - q*y non-negative
+//         let additional = (t.clone() - &x + b - BigUint::one()) / b;
+//         let x_adjusted = x + (additional * b);
+//         (g, x_adjusted - t, y)
+//     }
+// }
+// Helper function for extended GCD calculation
+// fn extended_gcd(a: &BigUint, b: &BigUint) -> (BigUint, BigUint, BigUint) {
+//     if b.is_zero() {
+//         return (a.clone(), BigUint::one(), BigUint::zero());
+//     }
+    
+//     let (gcd, s, t) = extended_gcd(b, &(a % b));
+    
+//     // Calculate new coefficients
+//     let q = a / b;
+    
+//     // Calculate new_t = s - q * t
+//     // Since BigUint doesn't support negative numbers, we need to handle the case
+//     // where s < q * t differently
+//     let new_t = if &s >= &(&q * &t) {
+//         s.clone() - &q * &t
+//     } else {
+//         // If s < q*t, we need to compute (s + k*b - q*t) where k is chosen
+//         // so that s + k*b >= q*t
+//         let k = (&q * &t - &s + b - BigUint::one()) / b;
+//         s.clone() + k * b - &q * &t
+//     };
+    
+//     (gcd, t, new_t)
+// }
 /// Save keys to files
 pub fn save_keys(public_key: &PublicKey, private_key: &PrivateKey, dir: &str) -> Result<(), String> {
     // Create directory if it doesn't exist
