@@ -132,8 +132,3 @@ E(m)ᵏ mod n² = E(k·m mod n)
 ```
 ---
 
-
-
-
-## License
-MIT License - See [LICENSE](LICENSE) for details.
